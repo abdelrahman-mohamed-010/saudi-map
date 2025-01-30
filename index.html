@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Saudi Arabia Map Animation</title>
+    <style>
+      body {
+          margin: 0;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+      }
+      /* Replace canvas styles with mapContainer styles */
+      #mapContainer {
+          display: block;
+          border: 2px solid #000;
+          border-radius: 10px;
+          position: relative;
+          width: 600px;
+          height: 600px;
+          rotate: 180deg;
+          transform: rotateY(180deg); /* Add this line to reverse the element */
+         
+      }
+      /* Add styles for animated points */
+      .map-point {
+          position: absolute;
+          width: 4px;
+          height: 4px;
+          border-radius: 50%;
+          background-color: rgba(34, 197, 94, 1);
+          transition: opacity 0.02s;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- Replace canvas with div -->
+    <div id="mapContainer"></div>
+
+    <script>
+      const saudiCoordinates = [];
+
+      fetch('./sa (1).json')
+          .then(response => response.json())
+          .then(data => {
+              const coordinates = data.features[0].geometry.coordinates[0][0];
+              const bounds = getBounds(coordinates);
+              saudiCoordinates.push(...coordinates.map(coord => [
+                  (coord[0] - bounds.minX) / (bounds.maxX - bounds.minX),
+                  (coord[1] - bounds.minY) / (bounds.maxY - bounds.minY)
+              ]));
+              new SaudiMap();
+          });
+
+      function getBounds(coords) {
+          const bounds = {
+              minX: Infinity,
+              maxX: -Infinity,
+              minY: Infinity,
+              maxY: -Infinity
+          };
+
+          coords.forEach(coord => {
+              bounds.minX = Math.min(bounds.minX, coord[0]);
+              bounds.maxX = Math.max(bounds.maxX, coord[0]);
+              bounds.minY = Math.min(bounds.minY, coord[1]);
+              bounds.maxY = Math.max(bounds.maxY, coord[1]);
+          });
+
+          const padding = 0.1;
+          const rangeX = bounds.maxX - bounds.minX;
+          const rangeY = bounds.maxY - bounds.minY;
+          bounds.minX -= rangeX * padding;
+          bounds.maxX += rangeX * padding;
+          bounds.minY -= rangeY * padding;
+          bounds.maxY += rangeY * padding;
+
+          return bounds;
+      }
+
+      class SaudiMap {
+          constructor() {
+              this.container = document.getElementById('mapContainer');
+
+              this.scale = 0.95;
+              this.margin = 0.02;
+
+              this.points = [];
+              this.dotSize = 2;
+              this.fadeSpeed = 0.02;
+              this.density = 6;
+              this.animationId = null;
+
+              this.initPoints();
+              this.animate();
+          }
+
+          isInsideSaudi(x, y, width, height) {
+              let inside = false;
+              let j = saudiCoordinates.length - 1;
+
+              const effectiveSize = Math.min(width, height) * this.scale;
+              const offsetX = (width - effectiveSize) / 2;
+              const offsetY = (height - effectiveSize) / 2;
+
+              for (let i = 0; i < saudiCoordinates.length; i++) {
+                  const xi = saudiCoordinates[i][0] * effectiveSize + offsetX;
+                  const yi = saudiCoordinates[i][1] * effectiveSize + offsetY;
+                  const xj = saudiCoordinates[j][0] * effectiveSize + offsetX;
+                  const yj = saudiCoordinates[j][1] * effectiveSize + offsetY;
+
+                  const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+                  if (intersect) inside = !inside;
+                  j = i;
+              }
+
+              return inside;
+          }
+
+          initPoints() {
+              const width = this.container.clientWidth;
+              const height = this.container.clientHeight;
+              this.points = [];
+              const spacing = this.density;
+              const offset = spacing / 2;
+
+              for (let y = 0; y < height; y += spacing) {
+                  for (let x = (y / spacing) % 2 === 0 ? 0 : offset; x < width; x += spacing) {
+                      if (this.isInsideSaudi(x, y, width, height)) {
+                          // Arrange dots in a staggered grid pattern
+                          const pointElement = document.createElement('div');
+                          pointElement.classList.add('map-point');
+                          pointElement.style.left = `${x}px`;
+                          pointElement.style.top = `${y}px`;
+                          pointElement.style.opacity = Math.random();
+                          this.container.appendChild(pointElement);
+
+                          this.points.push({
+                              element: pointElement,
+                              opacity: parseFloat(pointElement.style.opacity),
+                              targetOpacity: Math.random(),
+                              transitionSpeed: 0.01 + Math.random() * 0.02
+                          });
+                      }
+                  }
+              }
+          }
+
+          animate() {
+              this.points.forEach(point => {
+                  if (Math.abs(point.opacity - point.targetOpacity) < 0.01) {
+                      point.targetOpacity = Math.random();
+                  }
+
+                  point.opacity += (point.targetOpacity - point.opacity) * point.transitionSpeed * this.fadeSpeed;
+                  point.element.style.opacity = point.opacity;
+              });
+
+              this.animationId = requestAnimationFrame(() => this.animate());
+          }
+      }
+    </script>
+  </body>
+</html>
