@@ -26,11 +26,25 @@
       /* Add styles for animated points */
       .map-point {
           position: absolute;
-          width: 4px;
-          height: 4px;
+          width: 6px;
+          height: 6px;
           border-radius: 50%;
           background-color: rgba(34, 197, 94, 1);
-          transition: opacity 0.02s;
+          transition: opacity 0.02s, transform 0.3s, background-color 0.3s;
+      }
+      
+      .hover-zone {
+          position: absolute;
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          pointer-events: all;
+          z-index: 1;
+      }
+
+      .map-point.hovered {
+          transform: scale(1.3);
+          background-color: rgba(22, 163, 74, 1);
       }
     </style>
   </head>
@@ -87,12 +101,15 @@
               this.margin = 0.02;
 
               this.points = [];
-              this.dotSize = 2;
+              this.dotSize = 12;
               this.fadeSpeed = 0.02;
-              this.density = 6;
+              this.density = 10;
               this.animationId = null;
+              this.hoverZones = [];
+              this.zoneSize = 40; // Size of hover zone in pixels
 
               this.initPoints();
+              this.setupHoverZones();
               this.animate();
           }
 
@@ -145,6 +162,48 @@
                       }
                   }
               }
+          }
+
+          setupHoverZones() {
+              const width = this.container.clientWidth;
+              const height = this.container.clientHeight;
+              const zoneSpacing = this.zoneSize;
+
+              for (let y = 0; y < height; y += zoneSpacing) {
+                  for (let x = 0; x < width; x += zoneSpacing) {
+                      const zone = document.createElement('div');
+                      zone.classList.add('hover-zone');
+                      zone.style.left = `${x - this.zoneSize/2}px`;
+                      zone.style.top = `${y - this.zoneSize/2}px`;
+                      
+                      zone.addEventListener('mouseenter', () => {
+                          this.points.forEach(point => {
+                              const pointX = parseInt(point.element.style.left);
+                              const pointY = parseInt(point.element.style.top);
+                              if (this.isPointInZone(pointX, pointY, x, y)) {
+                                  point.element.classList.add('hovered');
+                              }
+                          });
+                      });
+
+                      zone.addEventListener('mouseleave', () => {
+                          this.points.forEach(point => {
+                              point.element.classList.remove('hovered');
+                          });
+                      });
+
+                      this.container.appendChild(zone);
+                      this.hoverZones.push(zone);
+                  }
+              }
+          }
+
+          isPointInZone(pointX, pointY, zoneX, zoneY) {
+              const distance = Math.sqrt(
+                  Math.pow(pointX - zoneX, 2) + 
+                  Math.pow(pointY - zoneY, 2)
+              );
+              return distance <= this.zoneSize/2;
           }
 
           animate() {
