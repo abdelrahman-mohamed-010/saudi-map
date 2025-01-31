@@ -40,172 +40,173 @@
     <div id="mapContainer"></div>
 
     <script>
-      const saudiCoordinates = [];
-      const HOVER_RADIUS = 40; // Increased hover radius for smoother effect
+        const saudiCoordinates = [];
+        const HOVER_RADIUS = 40; // Increased hover radius for smoother effect
 
-      fetch('./sa (1).json')
-          .then(response => response.json())
-          .then(data => {
-              const coordinates = data.features[0].geometry.coordinates[0][0];
-              const bounds = getBounds(coordinates);
-              saudiCoordinates.push(...coordinates.map(coord => [
-                  (coord[0] - bounds.minX) / (bounds.maxX - bounds.minX),
-                  (coord[1] - bounds.minY) / (bounds.maxY - bounds.minY)
-              ]));
-              new SaudiMap();
-          });
+      //   fetch('./sa (1).json')
+      fetch("https://gist.githubusercontent.com/abdelrahman-mohamed-010/922d77a4db9be6c517e0c9aed9bcdf91/raw/eea19500a3c3d1636462255cbabe9bf16ddce024/gistfile1.txt")
+            .then(response => response.json())
+            .then(data => {
+                const coordinates = data.features[0].geometry.coordinates[0][0];
+                const bounds = getBounds(coordinates);
+                saudiCoordinates.push(...coordinates.map(coord => [
+                    (coord[0] - bounds.minX) / (bounds.maxX - bounds.minX),
+                    (coord[1] - bounds.minY) / (bounds.maxY - bounds.minY)
+                ]));
+                new SaudiMap();
+            });
 
-      function getBounds(coords) {
-          const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
-          coords.forEach(coord => {
-              bounds.minX = Math.min(bounds.minX, coord[0]);
-              bounds.maxX = Math.max(bounds.maxX, coord[0]);
-              bounds.minY = Math.min(bounds.minY, coord[1]);
-              bounds.maxY = Math.max(bounds.maxY, coord[1]);
-          });
-          const padding = 0.1;
-          const rangeX = bounds.maxX - bounds.minX;
-          const rangeY = bounds.maxY - bounds.minY;
-          bounds.minX -= rangeX * padding;
-          bounds.maxX += rangeX * padding;
-          bounds.minY -= rangeY * padding;
-          bounds.maxY += rangeY * padding;
-          return bounds;
-      }
+        function getBounds(coords) {
+            const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
+            coords.forEach(coord => {
+                bounds.minX = Math.min(bounds.minX, coord[0]);
+                bounds.maxX = Math.max(bounds.maxX, coord[0]);
+                bounds.minY = Math.min(bounds.minY, coord[1]);
+                bounds.maxY = Math.max(bounds.maxY, coord[1]);
+            });
+            const padding = 0.1;
+            const rangeX = bounds.maxX - bounds.minX;
+            const rangeY = bounds.maxY - bounds.minY;
+            bounds.minX -= rangeX * padding;
+            bounds.maxX += rangeX * padding;
+            bounds.minY -= rangeY * padding;
+            bounds.maxY += rangeY * padding;
+            return bounds;
+        }
 
-      class SaudiMap {
-          constructor() {
-              this.container = document.getElementById('mapContainer');
-              this.scale = 0.95;
-              this.points = [];
-              this.density = 12;
-              this.pointsMap = new Map();
-              this.mouseX = -1000;
-              this.mouseY = -1000;
+        class SaudiMap {
+            constructor() {
+                this.container = document.getElementById('mapContainer');
+                this.scale = 0.95;
+                this.points = [];
+                this.density = 12;
+                this.pointsMap = new Map();
+                this.mouseX = -1000;
+                this.mouseY = -1000;
 
-              this.initPoints();
-              this.setupMouseTracking();
-              this.animate();
-          }
+                this.initPoints();
+                this.setupMouseTracking();
+                this.animate();
+            }
 
-          isInsideSaudi(x, y) {
-              let inside = false;
-              const width = this.container.clientWidth;
-              const height = this.container.clientHeight;
-              const effectiveSize = Math.min(width, height) * this.scale;
-              const offsetX = (width - effectiveSize) / 2;
-              const offsetY = (height - effectiveSize) / 2;
-              let j = saudiCoordinates.length - 1;
+            isInsideSaudi(x, y) {
+                let inside = false;
+                const width = this.container.clientWidth;
+                const height = this.container.clientHeight;
+                const effectiveSize = Math.min(width, height) * this.scale;
+                const offsetX = (width - effectiveSize) / 2;
+                const offsetY = (height - effectiveSize) / 2;
+                let j = saudiCoordinates.length - 1;
 
-              for (let i = 0; i < saudiCoordinates.length; i++) {
-                  const xi = saudiCoordinates[i][0] * effectiveSize + offsetX;
-                  const yi = saudiCoordinates[i][1] * effectiveSize + offsetY;
-                  const xj = saudiCoordinates[j][0] * effectiveSize + offsetX;
-                  const yj = saudiCoordinates[j][1] * effectiveSize + offsetY;
+                for (let i = 0; i < saudiCoordinates.length; i++) {
+                    const xi = saudiCoordinates[i][0] * effectiveSize + offsetX;
+                    const yi = saudiCoordinates[i][1] * effectiveSize + offsetY;
+                    const xj = saudiCoordinates[j][0] * effectiveSize + offsetX;
+                    const yj = saudiCoordinates[j][1] * effectiveSize + offsetY;
 
-                  const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
-                  if (intersect) inside = !inside;
-                  j = i;
-              }
-              return inside;
-          }
+                    const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
+                    if (intersect) inside = !inside;
+                    j = i;
+                }
+                return inside;
+            }
 
-          getWeightedOpacity() {
-              // 70% chance of dark (0.7-1.0), 30% chance of light (0.3-0.6)
-              return Math.random() > 0.3
-                  ? Math.random() * 0.3 + 0.7  // dark dots (0.7-1.0)
-                  : Math.random() * 0.3 + 0.3;  // light dots (0.3-0.6)
-          }
+            getWeightedOpacity() {
+                // 70% chance of dark (0.7-1.0), 30% chance of light (0.3-0.6)
+                return Math.random() > 0.3
+                    ? Math.random() * 0.3 + 0.7  // dark dots (0.7-1.0)
+                    : Math.random() * 0.3 + 0.3;  // light dots (0.3-0.6)
+            }
 
-          initPoints() {
-              const width = this.container.clientWidth;
-              const height = this.container.clientHeight;
-              const spacing = this.density;
-              const offset = spacing / 2;
+            initPoints() {
+                const width = this.container.clientWidth;
+                const height = this.container.clientHeight;
+                const spacing = this.density;
+                const offset = spacing / 2;
 
-              for (let y = 0; y < height; y += spacing) {
-                  for (let x = (y/spacing) % 2 ? 0 : offset; x < width; x += spacing) {
-                      if (this.isInsideSaudi(x, y)) {
-                          const pointElement = document.createElement('div');
-                          pointElement.classList.add('map-point');
-                          pointElement.style.left = `${x}px`;
-                          pointElement.style.top = `${y}px`;
-                          // Generate initial opacity favoring darker values
-                          const initialOpacity = this.getWeightedOpacity();
-                          pointElement.style.opacity = initialOpacity;
-                          this.container.appendChild(pointElement);
+                for (let y = 0; y < height; y += spacing) {
+                    for (let x = (y/spacing) % 2 ? 0 : offset; x < width; x += spacing) {
+                        if (this.isInsideSaudi(x, y)) {
+                            const pointElement = document.createElement('div');
+                            pointElement.classList.add('map-point');
+                            pointElement.style.left = `${x}px`;
+                            pointElement.style.top = `${y}px`;
+                            // Generate initial opacity favoring darker values
+                            const initialOpacity = this.getWeightedOpacity();
+                            pointElement.style.opacity = initialOpacity;
+                            this.container.appendChild(pointElement);
 
-                          const gridKey = `${Math.floor(x/30)},${Math.floor(y/30)}`;
-                          if (!this.pointsMap.has(gridKey)) this.pointsMap.set(gridKey, []);
-                          this.pointsMap.get(gridKey).push({
-                              element: pointElement,
-                              x: x,
-                              y: y,
-                              opacity: initialOpacity,
-                              // Generate target opacity favoring darker values
-                              targetOpacity: this.getWeightedOpacity(),
-                              transitionSpeed: 0.01 + Math.random() * 0.02
-                          });
-                          this.points.push(this.pointsMap.get(gridKey).at(-1));
-                      }
-                  }
-              }
-          }
+                            const gridKey = `${Math.floor(x/30)},${Math.floor(y/30)}`;
+                            if (!this.pointsMap.has(gridKey)) this.pointsMap.set(gridKey, []);
+                            this.pointsMap.get(gridKey).push({
+                                element: pointElement,
+                                x: x,
+                                y: y,
+                                opacity: initialOpacity,
+                                // Generate target opacity favoring darker values
+                                targetOpacity: this.getWeightedOpacity(),
+                                transitionSpeed: 0.01 + Math.random() * 0.02
+                            });
+                            this.points.push(this.pointsMap.get(gridKey).at(-1));
+                        }
+                    }
+                }
+            }
 
-          setupMouseTracking() {
-              this.container.addEventListener('mousemove', (e) => {
-                  const rect = this.container.getBoundingClientRect();
-                  // Handle both rotate: 180deg and transform: rotateY(180deg)
-                  this.mouseX = e.clientX - rect.left;
-                  this.mouseY = rect.height - (e.clientY - rect.top);
-                  this.updateHoverEffects();
-              });
+            setupMouseTracking() {
+                this.container.addEventListener('mousemove', (e) => {
+                    const rect = this.container.getBoundingClientRect();
+                    // Handle both rotate: 180deg and transform: rotateY(180deg)
+                    this.mouseX = e.clientX - rect.left;
+                    this.mouseY = rect.height - (e.clientY - rect.top);
+                    this.updateHoverEffects();
+                });
 
-              this.container.addEventListener('mouseleave', () => {
-                  this.mouseX = -1000;
-                  this.mouseY = -1000;
-                  this.updateHoverEffects();
-              });
-          }
+                this.container.addEventListener('mouseleave', () => {
+                    this.mouseX = -1000;
+                    this.mouseY = -1000;
+                    this.updateHoverEffects();
+                });
+            }
 
-          updateHoverEffects() {
-              const hoverSqRadius = HOVER_RADIUS * HOVER_RADIUS;
+            updateHoverEffects() {
+                const hoverSqRadius = HOVER_RADIUS * HOVER_RADIUS;
 
-              // Clear all hover states
-              this.points.forEach(p => p.element.classList.remove('hovered'));
+                // Clear all hover states
+                this.points.forEach(p => p.element.classList.remove('hovered'));
 
-              // Only check points in nearby grid cells
-              const gridX = Math.floor(this.mouseX / 30);
-              const gridY = Math.floor(this.mouseY / 30);
+                // Only check points in nearby grid cells
+                const gridX = Math.floor(this.mouseX / 30);
+                const gridY = Math.floor(this.mouseY / 30);
 
-              for (let x = gridX - 2; x <= gridX + 2; x++) {
-                  for (let y = gridY - 2; y <= gridY + 2; y++) {
-                      const key = `${x},${y}`;
-                      if (this.pointsMap.has(key)) {
-                          this.pointsMap.get(key).forEach(point => {
-                              const dx = point.x - this.mouseX;
-                              const dy = point.y - this.mouseY;
-                              if (dx*dx + dy*dy <= hoverSqRadius) {
-                                  point.element.classList.add('hovered');
-                              }
-                          });
-                      }
-                  }
-              }
-          }
+                for (let x = gridX - 2; x <= gridX + 2; x++) {
+                    for (let y = gridY - 2; y <= gridY + 2; y++) {
+                        const key = `${x},${y}`;
+                        if (this.pointsMap.has(key)) {
+                            this.pointsMap.get(key).forEach(point => {
+                                const dx = point.x - this.mouseX;
+                                const dy = point.y - this.mouseY;
+                                if (dx*dx + dy*dy <= hoverSqRadius) {
+                                    point.element.classList.add('hovered');
+                                }
+                            });
+                        }
+                    }
+                }
+            }
 
-          animate() {
-              this.points.forEach(point => {
-                  if (Math.abs(point.opacity - point.targetOpacity) < 0.01) {
-                      // Generate new target opacity favoring darker values
-                      point.targetOpacity = this.getWeightedOpacity();
-                  }
-                  point.opacity += (point.targetOpacity - point.opacity) * point.transitionSpeed;
-                  point.element.style.opacity = point.opacity;
-              });
-              requestAnimationFrame(() => this.animate());
-          }
-      }
+            animate() {
+                this.points.forEach(point => {
+                    if (Math.abs(point.opacity - point.targetOpacity) < 0.01) {
+                        // Generate new target opacity favoring darker values
+                        point.targetOpacity = this.getWeightedOpacity();
+                    }
+                    point.opacity += (point.targetOpacity - point.opacity) * point.transitionSpeed;
+                    point.element.style.opacity = point.opacity;
+                });
+                requestAnimationFrame(() => this.animate());
+            }
+        }
     </script>
   </body>
 </html>
