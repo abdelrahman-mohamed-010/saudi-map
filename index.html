@@ -26,11 +26,12 @@
       /* Add styles for animated points */
       .map-point {
           position: absolute;
-          width: 6px;
-          height: 6px;
+          width: 7px;
+          height: 7px;
           border-radius: 50%;
           background-color: rgba(34, 197, 94, 1);
-          transition: opacity 0.02s, transform 0.3s, background-color 0.3s;
+          /* Make transitions faster */
+          transition: all 0.05s ease-out;
       }
       
       .hover-zone {
@@ -43,7 +44,7 @@
       }
 
       .map-point.hovered {
-          transform: scale(1.3);
+          transform: scale(1.5);
           background-color: rgba(22, 163, 74, 1);
       }
     </style>
@@ -101,12 +102,13 @@
               this.margin = 0.02;
 
               this.points = [];
-              this.dotSize = 12;
-              this.fadeSpeed = 0.02;
-              this.density = 10;
+              this.dotSize = 28;
+              this.fadeSpeed = 0.08;
+              this.density = 12;
               this.animationId = null;
               this.hoverZones = [];
-              this.zoneSize = 40; // Size of hover zone in pixels
+              this.zoneSize = 27; // Slightly smaller zone for better response
+              this.pointsMap = new Map(); // Add this line for optimization
 
               this.initPoints();
               this.setupHoverZones();
@@ -153,12 +155,23 @@
                           pointElement.style.opacity = Math.random();
                           this.container.appendChild(pointElement);
 
-                          this.points.push({
+                          // Store points in a grid-based map for faster lookup
+                          const gridX = Math.floor(x / this.zoneSize);
+                          const gridY = Math.floor(y / this.zoneSize);
+                          const key = `${gridX},${gridY}`;
+                          if (!this.pointsMap.has(key)) {
+                              this.pointsMap.set(key, []);
+                          }
+                          this.pointsMap.get(key).push({
                               element: pointElement,
+                              x: x,
+                              y: y,
                               opacity: parseFloat(pointElement.style.opacity),
                               targetOpacity: Math.random(),
                               transitionSpeed: 0.01 + Math.random() * 0.02
                           });
+                          
+                          this.points.push(this.pointsMap.get(key).at(-1));
                       }
                   }
               }
@@ -176,16 +189,37 @@
                       zone.style.left = `${x - this.zoneSize/2}px`;
                       zone.style.top = `${y - this.zoneSize/2}px`;
                       
-                      zone.addEventListener('mouseenter', () => {
+                      // Replace mouseenter and mouseleave with mousemove
+                      zone.addEventListener('mousemove', (event) => {
+                          const rect = zone.getBoundingClientRect();
+                          const mouseX = event.clientX - rect.left;
+                          const mouseY = event.clientY - rect.top;
+                          
+                          const zoneCenterX = x;
+                          const zoneCenterY = y;
+                          
+                          // Clear previously hovered points
                           this.points.forEach(point => {
-                              const pointX = parseInt(point.element.style.left);
-                              const pointY = parseInt(point.element.style.top);
-                              if (this.isPointInZone(pointX, pointY, x, y)) {
-                                  point.element.classList.add('hovered');
-                              }
+                              point.element.classList.remove('hovered');
                           });
+
+                          // Check surrounding grid cells
+                          for (let dx = -1; dx <= 1; dx++) {
+                              for (let dy = -1; dy <= 1; dy++) {
+                                  const key = `${Math.floor((x + dx * this.zoneSize) / this.zoneSize)},${Math.floor((y + dy * this.zoneSize) / this.zoneSize)}`;
+                                  const points = this.pointsMap.get(key);
+                                  if (points) {
+                                      points.forEach(point => {
+                                          if (this.isPointInZone(point.x, point.y, x, y)) {
+                                              point.element.classList.add('hovered');
+                                          }
+                                      });
+                                  }
+                              }
+                          }
                       });
 
+                      // Optionally handle mouseleave to clear hovered points
                       zone.addEventListener('mouseleave', () => {
                           this.points.forEach(point => {
                               point.element.classList.remove('hovered');
