@@ -19,8 +19,8 @@
           position: relative;
           width: 600px;
           height: 600px;
-            /* rotate: 180deg; */
-          transform: rotate(180deg);
+          rotate: 180deg;
+          transform: rotateY(180deg);
       }
       .map-point {
           position: absolute;
@@ -155,8 +155,8 @@
           setupMouseTracking() {
               this.container.addEventListener('mousemove', (e) => {
                   const rect = this.container.getBoundingClientRect();
-                  // Adjust coordinates for the 180-degree rotation
-                  this.mouseX = rect.width - (e.clientX - rect.left);
+                  // Handle both rotate: 180deg and transform: rotateY(180deg)
+                  this.mouseX = e.clientX - rect.left;
                   this.mouseY = rect.height - (e.clientY - rect.top);
                   this.updateHoverEffects();
               });
