@@ -10,8 +10,8 @@
           justify-content: center;
           align-items: center;
           min-height: 100vh;
+          background: white;
       }
-      /* Replace canvas styles with mapContainer styles */
       #mapContainer {
           display: block;
           border: 2px solid #000;
@@ -19,30 +19,17 @@
           position: relative;
           width: 600px;
           height: 600px;
-          rotate: 180deg;
-          transform: rotateY(180deg); /* Add this line to reverse the element */
-         
+            rotate: 180deg;
+          transform: rotateY(180deg);
       }
-      /* Add styles for animated points */
       .map-point {
           position: absolute;
           width: 7px;
           height: 7px;
           border-radius: 50%;
-          background-color: rgba(34, 197, 94, 1);
-          /* Make transitions faster */
+          background-color: rgba(34, 197, 94, 1);  /* Full opacity base color */
           transition: all 0.05s ease-out;
       }
-      
-      .hover-zone {
-          position: absolute;
-          width: 40px;
-          height: 40px;
-          border-radius: 50%;
-          pointer-events: all;
-          z-index: 1;
-      }
-
       .map-point.hovered {
           transform: scale(1.5);
           background-color: rgba(22, 163, 74, 1);
@@ -50,11 +37,11 @@
     </style>
   </head>
   <body>
-    <!-- Replace canvas with div -->
     <div id="mapContainer"></div>
 
     <script>
       const saudiCoordinates = [];
+      const HOVER_RADIUS = 40; // Increased hover radius for smoother effect
 
       fetch('./sa (1).json')
           .then(response => response.json())
@@ -69,20 +56,13 @@
           });
 
       function getBounds(coords) {
-          const bounds = {
-              minX: Infinity,
-              maxX: -Infinity,
-              minY: Infinity,
-              maxY: -Infinity
-          };
-
+          const bounds = { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity };
           coords.forEach(coord => {
               bounds.minX = Math.min(bounds.minX, coord[0]);
               bounds.maxX = Math.max(bounds.maxX, coord[0]);
               bounds.minY = Math.min(bounds.minY, coord[1]);
               bounds.maxY = Math.max(bounds.maxY, coord[1]);
           });
-
           const padding = 0.1;
           const rangeX = bounds.maxX - bounds.minX;
           const rangeY = bounds.maxY - bounds.minY;
@@ -90,38 +70,32 @@
           bounds.maxX += rangeX * padding;
           bounds.minY -= rangeY * padding;
           bounds.maxY += rangeY * padding;
-
           return bounds;
       }
 
       class SaudiMap {
           constructor() {
               this.container = document.getElementById('mapContainer');
-
               this.scale = 0.95;
-              this.margin = 0.02;
-
               this.points = [];
-              this.dotSize = 28;
-              this.fadeSpeed = 0.08;
               this.density = 12;
-              this.animationId = null;
-              this.hoverZones = [];
-              this.zoneSize = 27; // Slightly smaller zone for better response
-              this.pointsMap = new Map(); // Add this line for optimization
+              this.pointsMap = new Map();
+              this.mouseX = -1000;
+              this.mouseY = -1000;
 
               this.initPoints();
-              this.setupHoverZones();
+              this.setupMouseTracking();
               this.animate();
           }
 
-          isInsideSaudi(x, y, width, height) {
+          isInsideSaudi(x, y) {
               let inside = false;
-              let j = saudiCoordinates.length - 1;
-
+              const width = this.container.clientWidth;
+              const height = this.container.clientHeight;
               const effectiveSize = Math.min(width, height) * this.scale;
               const offsetX = (width - effectiveSize) / 2;
               const offsetY = (height - effectiveSize) / 2;
+              let j = saudiCoordinates.length - 1;
 
               for (let i = 0; i < saudiCoordinates.length; i++) {
                   const xi = saudiCoordinates[i][0] * effectiveSize + offsetX;
@@ -133,124 +107,103 @@
                   if (intersect) inside = !inside;
                   j = i;
               }
-
               return inside;
+          }
+
+          getWeightedOpacity() {
+              // 70% chance of dark (0.7-1.0), 30% chance of light (0.3-0.6)
+              return Math.random() > 0.3
+                  ? Math.random() * 0.3 + 0.7  // dark dots (0.7-1.0)
+                  : Math.random() * 0.3 + 0.3;  // light dots (0.3-0.6)
           }
 
           initPoints() {
               const width = this.container.clientWidth;
               const height = this.container.clientHeight;
-              this.points = [];
               const spacing = this.density;
               const offset = spacing / 2;
 
               for (let y = 0; y < height; y += spacing) {
-                  for (let x = (y / spacing) % 2 === 0 ? 0 : offset; x < width; x += spacing) {
-                      if (this.isInsideSaudi(x, y, width, height)) {
-                          // Arrange dots in a staggered grid pattern
+                  for (let x = (y/spacing) % 2 ? 0 : offset; x < width; x += spacing) {
+                      if (this.isInsideSaudi(x, y)) {
                           const pointElement = document.createElement('div');
                           pointElement.classList.add('map-point');
                           pointElement.style.left = `${x}px`;
                           pointElement.style.top = `${y}px`;
-                          pointElement.style.opacity = Math.random();
+                          // Generate initial opacity favoring darker values
+                          const initialOpacity = this.getWeightedOpacity();
+                          pointElement.style.opacity = initialOpacity;
                           this.container.appendChild(pointElement);
 
-                          // Store points in a grid-based map for faster lookup
-                          const gridX = Math.floor(x / this.zoneSize);
-                          const gridY = Math.floor(y / this.zoneSize);
-                          const key = `${gridX},${gridY}`;
-                          if (!this.pointsMap.has(key)) {
-                              this.pointsMap.set(key, []);
-                          }
-                          this.pointsMap.get(key).push({
+                          const gridKey = `${Math.floor(x/30)},${Math.floor(y/30)}`;
+                          if (!this.pointsMap.has(gridKey)) this.pointsMap.set(gridKey, []);
+                          this.pointsMap.get(gridKey).push({
                               element: pointElement,
                               x: x,
                               y: y,
-                              opacity: parseFloat(pointElement.style.opacity),
-                              targetOpacity: Math.random(),
+                              opacity: initialOpacity,
+                              // Generate target opacity favoring darker values
+                              targetOpacity: this.getWeightedOpacity(),
                               transitionSpeed: 0.01 + Math.random() * 0.02
                           });
-                          
-                          this.points.push(this.pointsMap.get(key).at(-1));
+                          this.points.push(this.pointsMap.get(gridKey).at(-1));
                       }
                   }
               }
           }
 
-          setupHoverZones() {
-              const width = this.container.clientWidth;
-              const height = this.container.clientHeight;
-              const zoneSpacing = this.zoneSize;
+          setupMouseTracking() {
+              this.container.addEventListener('mousemove', (e) => {
+                  const rect = this.container.getBoundingClientRect();
+                  // Adjust coordinates for the 180-degree rotation
+                  this.mouseX = rect.width - (e.clientX - rect.left);
+                  this.mouseY = rect.height - (e.clientY - rect.top);
+                  this.updateHoverEffects();
+              });
 
-              for (let y = 0; y < height; y += zoneSpacing) {
-                  for (let x = 0; x < width; x += zoneSpacing) {
-                      const zone = document.createElement('div');
-                      zone.classList.add('hover-zone');
-                      zone.style.left = `${x - this.zoneSize/2}px`;
-                      zone.style.top = `${y - this.zoneSize/2}px`;
-                      
-                      // Replace mouseenter and mouseleave with mousemove
-                      zone.addEventListener('mousemove', (event) => {
-                          const rect = zone.getBoundingClientRect();
-                          const mouseX = event.clientX - rect.left;
-                          const mouseY = event.clientY - rect.top;
-                          
-                          const zoneCenterX = x;
-                          const zoneCenterY = y;
-                          
-                          // Clear previously hovered points
-                          this.points.forEach(point => {
-                              point.element.classList.remove('hovered');
-                          });
-
-                          // Check surrounding grid cells
-                          for (let dx = -1; dx <= 1; dx++) {
-                              for (let dy = -1; dy <= 1; dy++) {
-                                  const key = `${Math.floor((x + dx * this.zoneSize) / this.zoneSize)},${Math.floor((y + dy * this.zoneSize) / this.zoneSize)}`;
-                                  const points = this.pointsMap.get(key);
-                                  if (points) {
-                                      points.forEach(point => {
-                                          if (this.isPointInZone(point.x, point.y, x, y)) {
-                                              point.element.classList.add('hovered');
-                                          }
-                                      });
-                                  }
-                              }
-                          }
-                      });
-
-                      // Optionally handle mouseleave to clear hovered points
-                      zone.addEventListener('mouseleave', () => {
-                          this.points.forEach(point => {
-                              point.element.classList.remove('hovered');
-                          });
-                      });
-
-                      this.container.appendChild(zone);
-                      this.hoverZones.push(zone);
-                  }
-              }
+              this.container.addEventListener('mouseleave', () => {
+                  this.mouseX = -1000;
+                  this.mouseY = -1000;
+                  this.updateHoverEffects();
+              });
           }
 
-          isPointInZone(pointX, pointY, zoneX, zoneY) {
-              const distance = Math.sqrt(
-                  Math.pow(pointX - zoneX, 2) + 
-                  Math.pow(pointY - zoneY, 2)
-              );
-              return distance <= this.zoneSize/2;
+          updateHoverEffects() {
+              const hoverSqRadius = HOVER_RADIUS * HOVER_RADIUS;
+
+              // Clear all hover states
+              this.points.forEach(p => p.element.classList.remove('hovered'));
+
+              // Only check points in nearby grid cells
+              const gridX = Math.floor(this.mouseX / 30);
+              const gridY = Math.floor(this.mouseY / 30);
+
+              for (let x = gridX - 2; x <= gridX + 2; x++) {
+                  for (let y = gridY - 2; y <= gridY + 2; y++) {
+                      const key = `${x},${y}`;
+                      if (this.pointsMap.has(key)) {
+                          this.pointsMap.get(key).forEach(point => {
+                              const dx = point.x - this.mouseX;
+                              const dy = point.y - this.mouseY;
+                              if (dx*dx + dy*dy <= hoverSqRadius) {
+                                  point.element.classList.add('hovered');
+                              }
+                          });
+                      }
+                  }
+              }
           }
 
           animate() {
               this.points.forEach(point => {
                   if (Math.abs(point.opacity - point.targetOpacity) < 0.01) {
-                      point.targetOpacity = Math.random();
+                      // Generate new target opacity favoring darker values
+                      point.targetOpacity = this.getWeightedOpacity();
                   }
-
-                  point.opacity += (point.targetOpacity - point.opacity) * point.transitionSpeed * this.fadeSpeed;
+                  point.opacity += (point.targetOpacity - point.opacity) * point.transitionSpeed;
                   point.element.style.opacity = point.opacity;
               });
-
-              this.animationId = requestAnimationFrame(() => this.animate());
+              requestAnimationFrame(() => this.animate());
           }
       }
     </script>
